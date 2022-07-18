@@ -3,44 +3,52 @@ package chaincode
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 )
 
-// SmartContract provides functions for managing an Asset
+// SmartContract provides functions for managing an Record
 type SmartContract struct {
 	contractapi.Contract
 }
 
-// Asset describes basic details of what makes up a simple asset
-//Insert struct field in alphabetic order => to achieve determinism across languages
-// golang keeps the order when marshal to json but doesn't order automatically
-type Asset struct {
-	AppraisedValue int    `json:"AppraisedValue"`
-	Color          string `json:"Color"`
-	ID             string `json:"ID"`
-	Owner          string `json:"Owner"`
-	Size           int    `json:"Size"`
+type Book struct {
+	BookID string `json:"BookID"`
+	Name   string `json:"Name"`
+	Author string `json:"Author"`
+	Valid  bool   `json:"Valid"`
+	Price  int    `json:"Price"`
+	Owner  string `json:"Owner"`
 }
 
-// InitLedger adds a base set of assets to the ledger
+// Record describes basic details of what makes up a simple asset
+//Insert struct field in alphabetic order => to achieve determinism across languages
+// golang keeps the order when marshal to json but doesn't order automatically
+type Record struct {
+	RecordID  string    `json:"RecordID"`
+	BookID    string    `json:"BookID"`
+	StartTime time.Time `json:"StartTime"`
+	EndTime   time.Time `json:"EndTime"`
+	Borrower  string    `json:"Borrower"`
+}
+
+// InitLedger adds a base set of book to the ledger
 func (s *SmartContract) InitLedger(ctx contractapi.TransactionContextInterface) error {
-	assets := []Asset{
-		{ID: "asset1", Color: "blue", Size: 5, Owner: "Tomoko", AppraisedValue: 300},
-		{ID: "asset2", Color: "red", Size: 5, Owner: "Brad", AppraisedValue: 400},
-		{ID: "asset3", Color: "green", Size: 10, Owner: "Jin Soo", AppraisedValue: 500},
-		{ID: "asset4", Color: "yellow", Size: 10, Owner: "Max", AppraisedValue: 600},
-		{ID: "asset5", Color: "black", Size: 15, Owner: "Adriana", AppraisedValue: 700},
-		{ID: "asset6", Color: "white", Size: 15, Owner: "Michel", AppraisedValue: 800},
+	books := []Book{
+		{BookID: "book1", Name: "Journey to the West", Author: "WuChengEn", Valid: true, Price: 20, Owner: "library"},
+		{BookID: "book2", Name: "A Dream of Red Mansions", Author: "CaoXueQin", Valid: true, Price: 21, Owner: "library"},
+		{BookID: "book3", Name: "Three Kingdoms", Author: "LuoGuanZhong", Valid: true, Price: 22, Owner: "library"},
+		{BookID: "book4", Name: "Water Margin", Author: "ShiNaiAn", Valid: true, Price: 23, Owner: "library"},
 	}
 
-	for _, asset := range assets {
-		assetJSON, err := json.Marshal(asset)
+	for _, book := range books {
+		bookJSON, err := json.Marshal(book)
 		if err != nil {
 			return err
 		}
 
-		err = ctx.GetStub().PutState(asset.ID, assetJSON)
+		err = ctx.GetStub().PutState(book.BookID, bookJSON)
 		if err != nil {
 			return fmt.Errorf("failed to put to world state. %v", err)
 		}
@@ -49,146 +57,236 @@ func (s *SmartContract) InitLedger(ctx contractapi.TransactionContextInterface) 
 	return nil
 }
 
-// CreateAsset issues a new asset to the world state with given details.
-func (s *SmartContract) CreateAsset(ctx contractapi.TransactionContextInterface, id string, color string, size int, owner string, appraisedValue int) error {
-	exists, err := s.AssetExists(ctx, id)
+// AddBook issues a new book to the world state with given details.
+func (s *SmartContract) AddBook(ctx contractapi.TransactionContextInterface, bookId string, name string, author string, price int) error {
+	exists, err := s.BookExists(ctx, bookId)
 	if err != nil {
 		return err
 	}
 	if exists {
-		return fmt.Errorf("the asset %s already exists", id)
+		return fmt.Errorf("the book %s already exists", bookId)
 	}
 
-	asset := Asset{
-		ID:             id,
-		Color:          color,
-		Size:           size,
-		Owner:          owner,
-		AppraisedValue: appraisedValue,
+	book := Book{
+		BookID: bookId,
+		Name:   name,
+		Author: author,
+		Valid:  true,
+		Price:  price,
+		Owner:  "library",
 	}
-	assetJSON, err := json.Marshal(asset)
+	bookJSON, err := json.Marshal(book)
 	if err != nil {
 		return err
 	}
 
-	return ctx.GetStub().PutState(id, assetJSON)
+	return ctx.GetStub().PutState(bookId, bookJSON)
 }
 
-// ReadAsset returns the asset stored in the world state with given id.
-func (s *SmartContract) ReadAsset(ctx contractapi.TransactionContextInterface, id string) (*Asset, error) {
-	assetJSON, err := ctx.GetStub().GetState(id)
+// AddRecord issues a new record to the world state with given details.
+func (s *SmartContract) AddRecord(ctx contractapi.TransactionContextInterface, recordId string, bookId string, startTime time.Time, borrower string) error {
+	exists, err := s.RecordExists(ctx, recordId)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return fmt.Errorf("the record %s already exists", recordId)
+	}
+
+	record := Record{
+		RecordID:  recordId,
+		BookID:    bookId,
+		StartTime: startTime,
+		Borrower:  borrower,
+	}
+	recordJSON, err := json.Marshal(record)
+	if err != nil {
+		return err
+	}
+
+	return ctx.GetStub().PutState(recordId, recordJSON)
+}
+
+// QueryBook returns the book stored in the world state with given id.
+func (s *SmartContract) QueryBook(ctx contractapi.TransactionContextInterface, bookId string) (*Book, error) {
+	bookJSON, err := ctx.GetStub().GetState(bookId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read from world state: %v", err)
 	}
-	if assetJSON == nil {
-		return nil, fmt.Errorf("the asset %s does not exist", id)
+	if bookJSON == nil {
+		return nil, fmt.Errorf("the book %s does not exist", bookId)
 	}
 
-	var asset Asset
-	err = json.Unmarshal(assetJSON, &asset)
+	var book Book
+	err = json.Unmarshal(bookJSON, &book)
 	if err != nil {
 		return nil, err
 	}
 
-	return &asset, nil
+	return &book, nil
 }
 
-// UpdateAsset updates an existing asset in the world state with provided parameters.
-func (s *SmartContract) UpdateAsset(ctx contractapi.TransactionContextInterface, id string, color string, size int, owner string, appraisedValue int) error {
-	exists, err := s.AssetExists(ctx, id)
+// QueryRecord returns the record stored in  the world state with given id.
+func (s *SmartContract) QueryRecord(ctx contractapi.TransactionContextInterface, recordId string) (*Record, error) {
+	recordJSON, err := ctx.GetStub().GetState(recordId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read from world state: %v", err)
+	}
+	if recordJSON == nil {
+		return nil, fmt.Errorf("the record %s does not exist", recordId)
+	}
+
+	var record Record
+	err = json.Unmarshal(recordJSON, &record)
+	if err != nil {
+		return nil, err
+	}
+
+	return &record, nil
+}
+
+// BorrowBook updates an existing book and add record in the world state with provided parameters.
+func (s *SmartContract) BorrowBook(ctx contractapi.TransactionContextInterface, recordId string, bookId string, newOwner string, startTime time.Time) error {
+	book, err := s.QueryBook(ctx, bookId)
+	if err != nil {
+		return err
+	}
+
+	book.Valid = false
+	book.Owner = newOwner
+	bookJSON, err := json.Marshal(book)
+	if err != nil {
+		return err
+	}
+
+	err = ctx.GetStub().PutState(bookId, bookJSON)
+	if err != nil {
+		return err
+	}
+
+	err = s.AddRecord(ctx, recordId, bookId, startTime, newOwner)
+
+	return err
+}
+func (s *SmartContract) ReturnBook(ctx contractapi.TransactionContextInterface, recordId string, bookId string, endTime time.Time) error {
+	book, err := s.QueryBook(ctx, bookId)
+	if err != nil {
+		return err
+	}
+
+	book.Valid = true
+	book.Owner = "library"
+	bookJSON, err := json.Marshal(book)
+	if err != nil {
+		return err
+	}
+	err = ctx.GetStub().PutState(bookId, bookJSON)
+	if err != nil {
+		return err
+	}
+
+	record, err := s.QueryRecord(ctx, recordId)
+	if err != nil {
+		return err
+	}
+
+	record.EndTime = endTime
+	recordJSON, err := json.Marshal(record)
+	if err != nil {
+		return err
+	}
+	err = ctx.GetStub().PutState(recordId, recordJSON)
+	if err != nil {
+		return err
+	}
+
+	return err
+}
+
+// DeleteBook deletes an given book from the world state.
+func (s *SmartContract) DeleteBook(ctx contractapi.TransactionContextInterface, bookId string) error {
+	exists, err := s.BookExists(ctx, bookId)
 	if err != nil {
 		return err
 	}
 	if !exists {
-		return fmt.Errorf("the asset %s does not exist", id)
+		return fmt.Errorf("the asset %s does not exist", bookId)
 	}
 
-	// overwriting original asset with new asset
-	asset := Asset{
-		ID:             id,
-		Color:          color,
-		Size:           size,
-		Owner:          owner,
-		AppraisedValue: appraisedValue,
-	}
-	assetJSON, err := json.Marshal(asset)
-	if err != nil {
-		return err
-	}
-
-	return ctx.GetStub().PutState(id, assetJSON)
+	return ctx.GetStub().DelState(bookId)
 }
 
-// DeleteAsset deletes an given asset from the world state.
-func (s *SmartContract) DeleteAsset(ctx contractapi.TransactionContextInterface, id string) error {
-	exists, err := s.AssetExists(ctx, id)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		return fmt.Errorf("the asset %s does not exist", id)
-	}
-
-	return ctx.GetStub().DelState(id)
-}
-
-// AssetExists returns true when asset with given ID exists in world state
-func (s *SmartContract) AssetExists(ctx contractapi.TransactionContextInterface, id string) (bool, error) {
-	assetJSON, err := ctx.GetStub().GetState(id)
+// BookExists returns true when book with given ID exists in world state
+func (s *SmartContract) BookExists(ctx contractapi.TransactionContextInterface, bookId string) (bool, error) {
+	bookJSON, err := ctx.GetStub().GetState(bookId)
 	if err != nil {
 		return false, fmt.Errorf("failed to read from world state: %v", err)
 	}
 
-	return assetJSON != nil, nil
+	return bookJSON != nil, nil
 }
 
-// TransferAsset updates the owner field of asset with given id in world state, and returns the old owner.
-func (s *SmartContract) TransferAsset(ctx contractapi.TransactionContextInterface, id string, newOwner string) (string, error) {
-	asset, err := s.ReadAsset(ctx, id)
+// RecordExists returns true when record with given ID exists in world state
+func (s *SmartContract) RecordExists(ctx contractapi.TransactionContextInterface, recordId string) (bool, error) {
+	recordJSON, err := ctx.GetStub().GetState(recordId)
 	if err != nil {
-		return "", err
+		return false, fmt.Errorf("failed to read from world state: %v", err)
 	}
 
-	oldOwner := asset.Owner
-	asset.Owner = newOwner
-
-	assetJSON, err := json.Marshal(asset)
-	if err != nil {
-		return "", err
-	}
-
-	err = ctx.GetStub().PutState(id, assetJSON)
-	if err != nil {
-		return "", err
-	}
-
-	return oldOwner, nil
+	return recordJSON != nil, nil
 }
 
-// GetAllAssets returns all assets found in world state
-func (s *SmartContract) GetAllAssets(ctx contractapi.TransactionContextInterface) ([]*Asset, error) {
+// GetAllBooks returns all books found in world state
+func (s *SmartContract) GetAllBooks(ctx contractapi.TransactionContextInterface) (map[string]int, error) {
 	// range query with empty string for startKey and endKey does an
-	// open-ended query of all assets in the chaincode namespace.
+	// open-ended query of all books in the chaincode namespace.
 	resultsIterator, err := ctx.GetStub().GetStateByRange("", "")
 	if err != nil {
 		return nil, err
 	}
 	defer resultsIterator.Close()
 
-	var assets []*Asset
+	bookList := make(map[string]int)
 	for resultsIterator.HasNext() {
 		queryResponse, err := resultsIterator.Next()
 		if err != nil {
 			return nil, err
 		}
 
-		var asset Asset
-		err = json.Unmarshal(queryResponse.Value, &asset)
+		var book Book
+		err = json.Unmarshal(queryResponse.Value, &book)
 		if err != nil {
 			return nil, err
 		}
-		assets = append(assets, &asset)
+		bookList[book.Name]++
 	}
 
-	return assets, nil
+	return bookList, nil
+}
+
+func (s *SmartContract) GetBorrowList(ctx contractapi.TransactionContext, name string) ([]*Book, error) {
+	resultsIterator, err := ctx.GetStub().GetStateByRange("", "")
+	if err != nil {
+		return nil, err
+	}
+	defer resultsIterator.Close()
+
+	var books []*Book
+	for resultsIterator.HasNext() {
+		queryResponse, err := resultsIterator.Next()
+		if err != nil {
+			return nil, err
+		}
+
+		var book Book
+		err = json.Unmarshal(queryResponse.Value, &book)
+		if err != nil {
+			return nil, err
+		}
+
+		if book.Name == name {
+			books = append(books, &book)
+		}
+	}
+	return books, nil
 }
