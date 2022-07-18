@@ -264,7 +264,7 @@ func (s *SmartContract) GetAllBooks(ctx contractapi.TransactionContextInterface)
 	return bookList, nil
 }
 
-func (s *SmartContract) GetBorrowList(ctx contractapi.TransactionContext, name string) ([]*Book, error) {
+func (s *SmartContract) GetBorrowList(ctx contractapi.TransactionContextInterface, name string) ([]*Book, error) {
 	resultsIterator, err := ctx.GetStub().GetStateByRange("", "")
 	if err != nil {
 		return nil, err
